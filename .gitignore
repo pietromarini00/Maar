@@ -1,2 +1,8 @@
 google_debug*
 __pycache__/parse_html.cpython-313.pyc
+fetch_lens_debug.py
+lens_debug_udm26.html
+lens_debug_udm48.html
+images/.DS_Store
+images/google_search/.DS_Store
+images/picasso_dora/.DS_Store
