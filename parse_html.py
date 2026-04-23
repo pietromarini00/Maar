@@ -204,10 +204,9 @@ def lens_exact_match_count(img_path, session=None) -> int:
     return len(cards)
 
 
-def vision_web_count(img_path, credentials_json: str, client=None) -> int:
+def vision_web_count(img_path, credentials_json: str, client=None) -> dict | int:
     """
-    Use the Google Cloud Vision API Web Detection to count how many web pages
-    contain this image (pages_with_matching_images).
+    Use the Google Cloud Vision API Web Detection to score image findability.
 
     Args:
         img_path:         Path to a local image file.
@@ -215,8 +214,16 @@ def vision_web_count(img_path, credentials_json: str, client=None) -> int:
         client:           Optional pre-built ImageAnnotatorClient to reuse.
 
     Returns:
-        int >= 0  — number of pages with matching images
-        -2        — file not found or API error
+        dict with keys:
+            full_matching_images       — near-identical copies found (uncapped)
+            partial_matching_images    — cropped/resized variants (uncapped)
+            pages_with_matching_images — pages hosting any match (uncapped)
+            web_entities               — Knowledge Graph entities (server cap: 15)
+            visually_similar_images    — visually similar images (server cap: 20)
+            best_guess_label           — top label string, or ""
+            top_entity                 — top entity description, or ""
+            score                      — full + partial + pages (the three uncapped fields)
+        -2  — file not found or API error
     """
     import os
     from pathlib import Path
@@ -237,7 +244,21 @@ def vision_web_count(img_path, credentials_json: str, client=None) -> int:
         if resp.error.message:
             return -2
 
-        return len(resp.web_detection.pages_with_matching_images)
+        wd = resp.web_detection
+        full    = len(wd.full_matching_images)
+        partial = len(wd.partial_matching_images)
+        pages   = len(wd.pages_with_matching_images)
+
+        return {
+            "full_matching_images":       full,
+            "partial_matching_images":    partial,
+            "pages_with_matching_images": pages,
+            "web_entities":               len(wd.web_entities),
+            "visually_similar_images":    len(wd.visually_similar_images),
+            "best_guess_label":           wd.best_guess_labels[0].label if wd.best_guess_labels else "",
+            "top_entity":                 wd.web_entities[0].description if wd.web_entities else "",
+            "score":                      full + partial + pages,
+        }
     except Exception:
         return -2
 
