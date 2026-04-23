@@ -184,6 +184,10 @@ def lens_exact_match_count(img_path, session=None) -> int:
         if "lns_surface=26" not in exact_url:
             exact_url += "&lns_surface=26"
 
+    # Wait for the Lens session to finish processing before fetching exact matches.
+    # Without this pause the server may not yet have results ready.
+    time.sleep(3)
+
     try:
         exact_resp = session.get(exact_url, timeout=20)
     except Exception:
@@ -198,6 +202,44 @@ def lens_exact_match_count(img_path, session=None) -> int:
     soup = BeautifulSoup(_decode_escapes(resp_text), "html.parser")
     cards = soup.select("a.ngTNl[data-hveid]")
     return len(cards)
+
+
+def vision_web_count(img_path, credentials_json: str, client=None) -> int:
+    """
+    Use the Google Cloud Vision API Web Detection to count how many web pages
+    contain this image (pages_with_matching_images).
+
+    Args:
+        img_path:         Path to a local image file.
+        credentials_json: Path to the Google Cloud service-account JSON key.
+        client:           Optional pre-built ImageAnnotatorClient to reuse.
+
+    Returns:
+        int >= 0  — number of pages with matching images
+        -2        — file not found or API error
+    """
+    import os
+    from pathlib import Path
+    from google.cloud import vision as gv
+
+    img_path = Path(img_path)
+    if not img_path.exists():
+        return -2
+
+    try:
+        if client is None:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(credentials_json)
+            client = gv.ImageAnnotatorClient()
+
+        image = gv.Image(content=img_path.read_bytes())
+        resp = client.web_detection(image=image, max_results=500)
+
+        if resp.error.message:
+            return -2
+
+        return len(resp.web_detection.pages_with_matching_images)
+    except Exception:
+        return -2
 
 
 def scrape_picasso_dora_maar(session=None) -> list[dict]:
